@@ -49,12 +49,16 @@ async function main() {
     }).single("image")
   );
   app.use((req, res, next) => {
-    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Origin", "*", "Authorization");
     res.setHeader(
       "Access-Control-Allow-Method",
       "GET, POST, PUT, PATCH, DELETE"
     );
-    res.setHeader("Access-Control-Allow-Headers", "*");
+    res.setHeader(
+      "Access-Control-Allow-Headers",
+      "*",
+      "Authorization",
+    );
     next();
   });
 
@@ -63,7 +67,7 @@ async function main() {
   app.use((error, req, res, next) => {
     const statusCode = error.statusCode || statusCodes.badRequest;
     const message = error.message;
-    res.status(statusCode).json({ message: message });
+    res.status(statusCode).json({ message: message, error: error.data });
   });
-  app.listen(8080);
+  app.listen(3000);
 }
