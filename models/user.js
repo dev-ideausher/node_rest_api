@@ -14,10 +14,14 @@ const userSchema = new Schema({
     type: String,
     required: true,
   },
+  status: {
+    type: String,
+    default: "I am a new user",
+  },
 
   post: [
     {
-      postId: Schema.Types.ObjectId,
+      type: Schema.Types.ObjectId,
       ref: "post",
     },
   ],

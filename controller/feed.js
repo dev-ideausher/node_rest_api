@@ -2,8 +2,9 @@ const fs = require("fs");
 const path = require("path");
 const { validationResult } = require("express-validator");
 const statusCodes = require("../constants/status_codes");
-const post = require("../models/post");
 const Post = require("../models/post");
+const User = require("../models/user");
+const { use } = require("../routes/feed");
 exports.getPosts = async (req, res, next) => {
   try {
     const currentPage = req.query.page || 1;
@@ -26,7 +27,7 @@ exports.getPosts = async (req, res, next) => {
   }
 };
 exports.createPost = async (req, res, next) => {
-  const { title, content, creator, createdAt } = req.body;
+  const { title, content, createdAt } = req.body;
   const image = req.file;
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -42,12 +43,17 @@ exports.createPost = async (req, res, next) => {
   const imageUrl = image.path;
 
   try {
+    const user = await User.findById(req.userId);
+
     const post = new Post({
       ...req.body,
       imageUrl: imageUrl,
+      creator: user._id,
     });
     await post.save();
 
+    user.post.push(post);
+    user.save();
     res.status(statusCodes.success).json({ post: post });
   } catch (e) {
     next(e);
@@ -84,12 +90,16 @@ exports.updatePost = async (req, res, next) => {
       body.imageUrl = image.path;
     }
 
-    const result = await Post.findByIdAndUpdate(postId, body);
-    console.log(result);
+    const post = await Post.findById(postId);
+    if (post.creator.toString() !== req.userId) {
+      const error = new Error("Not Authorized");
+      error.statusCode = statusCodes.authFailed;
+      throw error;
+    }
+    await post.updateOne(body);
     res.status(statusCodes.success).json({ message: "Post Updated" });
   } catch (e) {
-    console.log(e);
-    res.status(statusCodes.serverError).json({ message: e.toString() });
+    next(e);
   }
 };
 
@@ -102,10 +112,19 @@ exports.deletePost = async (req, res, next) => {
     }
     deleteImage(post.imageUrl);
 
+    if (post.creator.toString() !== req.userId) {
+      const error = new Error("Not Authorized");
+      error.statusCode = statusCodes.authFailed;
+      throw error;
+    }
     await Post.findByIdAndRemove(postId);
+
+    const user = await User.findById(req.userId);
+    user.post.pull(postId);
+    await user.save();
     res.status(statusCodes.success).json({ message: "Post deleted!" });
   } catch (e) {
-    res.status(statusCodes.authFailed).json({ message: e.toString() });
+    next(e);
   }
 };
 exports.deleteAllPost = async (req, res, next) => {
