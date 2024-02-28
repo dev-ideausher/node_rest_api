@@ -6,9 +6,7 @@ const authRoutes = require("./routes/auth");
 
 const app = express();
 const bodyParser = require("body-parser");
-const controller = require("./controller/feed");
 const mongoose = require("mongoose");
-const { error } = require("console");
 const statusCodes = require("./constants/status_codes");
 const multer = require("multer");
 main();
@@ -54,11 +52,7 @@ async function main() {
       "Access-Control-Allow-Method",
       "GET, POST, PUT, PATCH, DELETE"
     );
-    res.setHeader(
-      "Access-Control-Allow-Headers",
-      "*",
-      "Authorization",
-    );
+    res.setHeader("Access-Control-Allow-Headers", "*", "Authorization");
     next();
   });
 
@@ -69,5 +63,17 @@ async function main() {
     const message = error.message;
     res.status(statusCode).json({ message: message, error: error.data });
   });
-  app.listen(3000);
+  console.log("**App Started**");
+
+  const server = app.listen(3000);
+  const socket = require("./websockets/socket").init(server);
+  console.log("got socket");
+  try {
+    socket.on("connection", (data) => {
+      console.log("Client Connected!");
+    });
+   
+  } catch (e) {
+    console.log(e);
+  }
 }

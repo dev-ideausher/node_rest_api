@@ -5,6 +5,7 @@ const statusCodes = require("../constants/status_codes");
 const Post = require("../models/post");
 const User = require("../models/user");
 const { use } = require("../routes/feed");
+const io = require("../websockets/socket");
 exports.getPosts = async (req, res, next) => {
   try {
     const currentPage = req.query.page || 1;
@@ -13,7 +14,9 @@ exports.getPosts = async (req, res, next) => {
 
     const posts = await Post.find()
       .skip((currentPage - 1) * perPage)
-      .limit(perPage);
+      .limit(perPage)
+      .sort({ createdAt: -1 })
+      .populate("creator");
     if (!posts || posts.isEmpty) {
       const error = new Error("No Posts Found");
       next(error);
@@ -54,6 +57,7 @@ exports.createPost = async (req, res, next) => {
 
     user.post.push(post);
     user.save();
+    io.getIo().emit("post", { action: "create", post: post });
     res.status(statusCodes.success).json({ post: post });
   } catch (e) {
     next(e);
@@ -86,9 +90,6 @@ exports.updatePost = async (req, res, next) => {
 
     const body = req.body;
     const image = req.file;
-    if (image) {
-      body.imageUrl = image.path;
-    }
 
     const post = await Post.findById(postId);
     if (post.creator.toString() !== req.userId) {
@@ -96,7 +97,13 @@ exports.updatePost = async (req, res, next) => {
       error.statusCode = statusCodes.authFailed;
       throw error;
     }
-    await post.updateOne(body);
+    if (image) {
+      post.imageUrl = image.path;
+    }
+    post.title = body.title;
+    post.content = body.content;
+    await post.save();
+    io.getIo().emit("post", { action: "update", post: post });
     res.status(statusCodes.success).json({ message: "Post Updated" });
   } catch (e) {
     next(e);
@@ -122,6 +129,7 @@ exports.deletePost = async (req, res, next) => {
     const user = await User.findById(req.userId);
     user.post.pull(postId);
     await user.save();
+    io.getIo().emit("post", { action: "delete", post: post });
     res.status(statusCodes.success).json({ message: "Post deleted!" });
   } catch (e) {
     next(e);
